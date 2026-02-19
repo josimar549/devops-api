@@ -67,8 +67,8 @@ jobs:
           output: 'trivy-results.sarif'
       
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        if: github.repository == github.event.repository.full_name   # skip fork PRs
         with:
           sarif_file: 'trivy-results.sarif'
       
@@ -85,7 +85,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-      security-events: write
+      security-events: write   # for SARIF uploads
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
       image-digest: ${{ steps.build.outputs.digest }}
@@ -136,8 +136,8 @@ jobs:
           output: 'trivy-image-results.sarif'
       
       - name: Upload Trivy image results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        if: github.repository == github.event.repository.full_name   # skip fork PRs
         with:
           sarif_file: 'trivy-image-results.sarif'
 
@@ -156,13 +156,10 @@ jobs:
         run: |
           echo "🚀 Deploying to Development"
           echo "Image: ${{ needs.build-and-push.outputs.image-tag }}"
-          # In real scenario, this would deploy to dev cluster/server
-          # Example: kubectl set image deployment/api api=$IMAGE_TAG -n dev
       
       - name: Run smoke tests
         run: |
           echo "Running smoke tests on dev environment..."
-          # curl -f https://dev-api.example.com/health || exit 1
 
   # ── Stage 5: Deploy to Staging ───────────────────────────────────────────────
   deploy-staging:
@@ -179,17 +176,14 @@ jobs:
         run: |
           echo "🚀 Deploying to Staging"
           echo "Image: ${{ needs.build-and-push.outputs.image-tag }}"
-          # kubectl set image deployment/api api=$IMAGE_TAG -n staging
       
       - name: Run integration tests
         run: |
           echo "Running integration tests on staging..."
-          # npm run test:integration
       
       - name: Run performance tests
         run: |
           echo "Running performance tests..."
-          # k6 run performance-tests.js
 
   # ── Stage 6: Deploy to Production ────────────────────────────────────────────
   deploy-production:
@@ -206,8 +200,6 @@ jobs:
         run: |
           echo "🚀 Deploying to Production"
           echo "Image: ${{ needs.build-and-push.outputs.image-tag }}"
-          # kubectl set image deployment/api api=$IMAGE_TAG -n prod
-          # kubectl rollout status deployment/api -n prod
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -215,10 +207,8 @@ jobs:
           generate_release_notes: true
           body: |
             ## Deployed to Production
-            
             **Image Digest:** ${{ needs.build-and-push.outputs.image-digest }}
             **Deployed at:** ${{ github.event.head_commit.timestamp }}
-            
             ### Changes
             ${{ github.event.head_commit.message }}
 
@@ -285,8 +275,6 @@ jobs:
       - name: Rollback to previous version
         run: |
           echo "🔄 Rolling back production deployment"
-          # kubectl rollout undo deployment/api -n prod
-          # kubectl rollout status deployment/api -n prod
       
       - name: Notify rollback
         run: |
