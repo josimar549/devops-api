@@ -168,7 +168,7 @@ async def health_check():
     """
     return {
         "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "uptime_seconds": get_system_info()["uptime_seconds"],
     }
 
