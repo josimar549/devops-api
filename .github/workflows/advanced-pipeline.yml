@@ -53,6 +53,9 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: lint-and-test
+    permissions:
+      contents: read
+      security-events: write
     
     steps:
       - name: Checkout code
@@ -63,14 +66,7 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-      
-      - name: Upload Trivy results to GitHub Security
-        if: github.repository == github.event.repository.full_name
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: 'trivy-results.sarif'
+          format: 'table'
       
       - name: Python dependency check
         run: |
@@ -85,7 +81,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      security-events: write
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
       image-digest: ${{ steps.build.outputs.digest }}
@@ -132,14 +127,7 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          format: 'sarif'
-          output: 'trivy-image-results.sarif'
-      
-      - name: Upload Trivy image results
-        if: github.repository == github.event.repository.full_name
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: 'trivy-image-results.sarif'
+          format: 'table'
 
   # ── Stage 4: Deploy to Development ───────────────────────────────────────────
   deploy-dev:
@@ -231,6 +219,7 @@ jobs:
           else
             echo "status=success" >> $GITHUB_OUTPUT
             echo "emoji=✅" >> $GITHUB_OUTPUT
+          fi
       
       - name: Send Slack notification
         if: env.SLACK_WEBHOOK_URL != ''
@@ -263,20 +252,3 @@ jobs:
               repo: context.repo.repo,
               body: `## ${{ steps.result.outputs.emoji }} CI/CD Pipeline ${{ steps.result.outputs.status }}\n\n**Image built and pushed successfully!**\n\nDigest: \`${{ needs.build-and-push.outputs.image-digest }}\``
             })
-
-  # ── Rollback Job (manual trigger) ────────────────────────────────────────────
-  rollback:
-    name: Rollback Deployment
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    environment:
-      name: production
-    
-    steps:
-      - name: Rollback to previous version
-        run: |
-          echo "🔄 Rolling back production deployment"
-      
-      - name: Notify rollback
-        run: |
-          echo "Rollback completed successfully"
