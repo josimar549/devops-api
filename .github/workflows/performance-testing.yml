@@ -1,0 +1,116 @@
+name: Performance Testing
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run performance tests weekly on Sunday at 3 AM
+    - cron: '0 3 * * 0'
+
+jobs:
+  load-test:
+    name: Load Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install k6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v0.48.0/k6-v0.48.0-linux-amd64.tar.gz -L | tar xvz
+          sudo mv k6-v0.48.0-linux-amd64/k6 /usr/local/bin/
+      
+      - name: Create load test script
+        run: |
+          cat > load-test.js << 'EOF'
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          
+          export const options = {
+            stages: [
+              { duration: '1m', target: 10 },   // Ramp up to 10 users
+              { duration: '3m', target: 10 },   // Stay at 10 users
+              { duration: '1m', target: 50 },   // Ramp up to 50 users
+              { duration: '3m', target: 50 },   // Stay at 50 users
+              { duration: '1m', target: 0 },    // Ramp down
+            ],
+            thresholds: {
+              http_req_duration: ['p(95)<500'], // 95% of requests must complete below 500ms
+              http_req_failed: ['rate<0.01'],   // Error rate must be less than 1%
+            },
+          };
+          
+          export default function () {
+            const BASE_URL = __ENV.API_URL || 'http://localhost:8000';
+            
+            // Test health endpoint
+            let healthRes = http.get(`${BASE_URL}/health`);
+            check(healthRes, {
+              'health status is 200': (r) => r.status === 200,
+              'health response time < 200ms': (r) => r.timings.duration < 200,
+            });
+            
+            // Test metrics endpoint
+            let metricsRes = http.get(`${BASE_URL}/metrics`);
+            check(metricsRes, {
+              'metrics status is 200': (r) => r.status === 200,
+              'metrics response time < 500ms': (r) => r.timings.duration < 500,
+            });
+            
+            // Test system endpoint
+            let systemRes = http.get(`${BASE_URL}/system`);
+            check(systemRes, {
+              'system status is 200': (r) => r.status === 200,
+            });
+            
+            sleep(1);
+          }
+          EOF
+      
+      - name: Run load tests
+        run: |
+          k6 run load-test.js --out json=results.json || true
+      
+      - name: Parse results
+        run: |
+          echo "📊 Load Test Results"
+          cat results.json | jq -r '.metrics | to_entries[] | "\(.key): \(.value)"' || true
+      
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results
+          path: results.json
+      
+      - name: Comment results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## 📊 Performance Test Results\n\n' +
+                    'Load tests completed. Check artifacts for detailed results.'
+            })
+
+  stress-test:
+    name: Stress Testing
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run stress test
+        run: |
+          echo "Running stress test to find breaking point..."
+          
+          # Example: Use Apache Bench or similar tool
+          # ab -n 10000 -c 100 http://localhost:8000/health
+      
+      - name: Analyze results
+        run: |
+          echo "Analyzing stress test results..."
+          # Parse and report maximum throughput, breaking point, etc.

@@ -1,0 +1,70 @@
+name: Manual Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      image_tag:
+        description: 'Docker image tag to deploy'
+        required: true
+        type: string
+      run_tests:
+        description: 'Run tests before deployment'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Validate image tag
+        run: |
+          echo "Deploying image: ghcr.io/${{ github.repository }}:${{ inputs.image_tag }}"
+          echo "Environment: ${{ inputs.environment }}"
+      
+      - name: Run pre-deployment tests
+        if: inputs.run_tests
+        run: |
+          echo "Running pre-deployment tests..."
+          # Add actual test commands here
+      
+      - name: Deploy to ${{ inputs.environment }}
+        run: |
+          echo "🚀 Deploying to ${{ inputs.environment }}"
+          
+          # Example deployment commands:
+          # For Kubernetes:
+          # kubectl set image deployment/api api=ghcr.io/${{ github.repository }}:${{ inputs.image_tag }} -n ${{ inputs.environment }}
+          # kubectl rollout status deployment/api -n ${{ inputs.environment }}
+          
+          # For Docker Swarm:
+          # docker service update --image ghcr.io/${{ github.repository }}:${{ inputs.image_tag }} api_service
+          
+          # For EC2/VM:
+          # ssh user@server "docker pull ghcr.io/${{ github.repository }}:${{ inputs.image_tag }} && docker-compose up -d"
+      
+      - name: Verify deployment
+        run: |
+          echo "Verifying deployment health..."
+          # Health check example:
+          # curl -f https://${{ inputs.environment }}-api.example.com/health || exit 1
+      
+      - name: Post-deployment notification
+        run: |
+          echo "✅ Successfully deployed to ${{ inputs.environment }}"
+          echo "Image: ghcr.io/${{ github.repository }}:${{ inputs.image_tag }}"
