@@ -1,42 +1,39 @@
-# ── Build stage ───────────────────────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+# ── Build stage ─────────────────────────────────────────────────────────────
+FROM python:3.9-slim AS build
 
-WORKDIR /build
+# Install build dependencies for compiling Python packages
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc \
+    libffi-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install dependencies
 COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install --target=/build/deps -r requirements.txt
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
-# ── Runtime stage ─────────────────────────────────────────────────────────────
-FROM python:3.12-slim
-
-LABEL maintainer="Josimar Arias <josimar85209@gmail.com>" \
-      description="DevOps REST API - System monitoring FastAPI backend" \
-      version="1.0.0"
+# ── Runtime stage ───────────────────────────────────────────────────────────
+FROM python:3.9-slim
 
 WORKDIR /app
 
-# Copy dependencies and application
-COPY --from=builder /build/deps /app/deps
-COPY app/ /app/app/
+# Copy installed dependencies from build stage
+COPY --from=build /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
+COPY --from=build /usr/local/bin /usr/local/bin
 
-# Add deps to Python path
-ENV PYTHONPATH="/app/deps:/app"
-ENV PYTHONUNBUFFERED=1
+# Copy app code
+COPY app ./app
 
-# Create non-root user (security best practice)
-RUN useradd --system --no-create-home apiuser && \
-    chown -R apiuser:apiuser /app
+# Fix permissions so Kubernetes can read/execute files
+RUN chmod -R 755 /app
 
-USER apiuser
-
-# Expose port
+# Expose the port your FastAPI app runs on
 EXPOSE 8000
 
-# Health check (Docker will periodically verify the container is healthy)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
-
-# Run the API
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the app
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
