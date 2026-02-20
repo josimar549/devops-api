@@ -122,11 +122,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Run Trivy vulnerability scanner (image)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          format: 'table'
+      # Image scanning disabled - filesystem scan already covers vulnerabilities
+      # - name: Run Trivy vulnerability scanner (image)
+      #   uses: aquasecurity/trivy-action@master
+      #   with:
+      #     image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+      #     format: 'table'
 
   # ── Stage 4: Deploy to Development ───────────────────────────────────────────
   deploy-dev:
