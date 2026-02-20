@@ -125,7 +125,7 @@ jobs:
       - name: Run Trivy vulnerability scanner (image)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ steps.meta.outputs.tags }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           format: 'table'
 
   # ── Stage 4: Deploy to Development ───────────────────────────────────────────
